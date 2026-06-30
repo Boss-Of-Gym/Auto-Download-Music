@@ -19,5 +19,8 @@ browsers/
 # Claude Code session data
 .claude/
 
+# User-local GUI settings (window geometry, etc.)
+gui_settings.json
+
 # Logs
 *.log
