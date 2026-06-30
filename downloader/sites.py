@@ -56,6 +56,4 @@ SITES: list[dict] = [
         "no_navigate":  True,
         "download_btn": lambda page: page.locator("a.track__download-btn").first,
     },
-    # 101.ru исключён: /download/{id} ведёт на страницу со ссылками на YouTube Music,
-    # а не на прямой MP3-файл.
 ]
