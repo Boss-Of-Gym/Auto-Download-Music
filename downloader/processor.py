@@ -17,6 +17,9 @@ from track_store import update_status
 
 log = logging.getLogger(__name__)
 
+_MAX_ATTEMPTS = 2       # попыток на один сайт при сетевых ошибках
+_RETRY_DELAY  = 2.0     # секунды между попытками
+
 
 async def process_track(
     context:      BrowserContext,
@@ -31,6 +34,7 @@ async def process_track(
     """
     Полный цикл обработки одного трека через все сайты-источники.
     Перебирает SITES последовательно: нашёл совпадение → скачал → стоп.
+    При сетевой ошибке делает до _MAX_ATTEMPTS попыток перед переходом к следующему сайту.
     """
     track = entry["track"]
     idx   = entry["index"]
@@ -43,23 +47,36 @@ async def process_track(
         downloaded = False
 
         for site in SITES:
-            page = await context.new_page()
-            try:
-                found = await navigate_to_track_if_match(page, track, site)
-                if not found:
-                    continue
+            success = False
 
-                log.info("  Совпадение на: %s → скачиваем", site["name"])
-                success = await download_from_page(page, track, site, download_dir)
-                if success:
-                    downloaded = True
-                    stats["downloaded"] += 1
-                    await update_status(track_file, idx, "downloaded", file_lock)
-                    break
-            except Exception as exc:
-                log.warning("  [%s] Неожиданная ошибка: %s", site["name"], exc)
-            finally:
-                await page.close()
+            for attempt in range(_MAX_ATTEMPTS):
+                page = await context.new_page()
+                try:
+                    found = await navigate_to_track_if_match(page, track, site)
+                    if not found:
+                        break  # нет совпадения на этом сайте — retry не нужен
+
+                    log.info("  Совпадение на: %s → скачиваем", site["name"])
+                    success = await download_from_page(page, track, site, download_dir)
+                    break  # результат получен (успех или неудача скачивания)
+
+                except Exception as exc:
+                    log.warning(
+                        "  [%s] Попытка %d/%d, ошибка: %s",
+                        site["name"], attempt + 1, _MAX_ATTEMPTS, exc,
+                    )
+                    if attempt < _MAX_ATTEMPTS - 1:
+                        await asyncio.sleep(_RETRY_DELAY)
+                    # продолжаем к следующей попытке
+
+                finally:
+                    await page.close()
+
+            if success:
+                downloaded = True
+                stats["downloaded"] += 1
+                await update_status(track_file, idx, "downloaded", file_lock)
+                break  # трек найден — остальные сайты не нужны
 
         if not downloaded:
             log.warning("  ✗ Не найдено ни на одном сайте: %s", track)

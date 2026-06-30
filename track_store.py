@@ -13,10 +13,25 @@ from utils import app_dir, safe_filename
 
 
 def save_track_list(tracks: list[str], playlist_name: str) -> Path:
-    """Создаёт JSON-файл рядом со скриптом со всеми треками в статусе pending."""
+    """
+    Сохраняет список треков в JSON рядом со скриптом.
+    Если файл уже существует — сохраняет статусы downloaded/not_found
+    для треков с совпадающими именами (resume-поддержка при повторном запуске).
+    """
     path = app_dir() / (safe_filename(playlist_name) + "_tracks.json")
+
+    # Восстанавливаем статусы из предыдущего прогона
+    existing: dict[str, str] = {}
+    if path.exists():
+        try:
+            for e in json.loads(path.read_text(encoding="utf-8")):
+                existing[e["track"]] = e["status"]
+        except Exception:
+            pass
+
     data = [
-        {"index": i + 1, "track": track, "status": "pending"}
+        {"index": i + 1, "track": track,
+         "status": existing.get(track, "pending")}
         for i, track in enumerate(tracks)
     ]
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

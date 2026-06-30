@@ -11,9 +11,10 @@ from pathlib import Path
 
 
 # ── Технические константы ────────────────────────────────────────
-HEADLESS           = False          # False — браузер виден; True — скрытый режим
-MAX_CONCURRENT     = 3              # треков обрабатывается параллельно
-DEFAULT_DOWNLOAD_DIR = Path(r"C:\Users\user\Music")
+HEADLESS             = False            # False — браузер виден; True — скрытый режим
+MAX_CONCURRENT       = 3               # треков обрабатывается параллельно
+DEFAULT_DOWNLOAD_DIR = Path.home() / "Music"
+MIN_FILE_SIZE        = 512 * 1024      # 512 KB — минимальный размер валидного MP3
 
 
 # ── Пользовательская конфигурация ────────────────────────────────
@@ -37,3 +38,9 @@ class AppConfig:
     yandex_phone:        str = field(default="")
     yandex_login:        str = field(default="")
     yandex_account_name: str = field(default="")
+
+    def __post_init__(self) -> None:
+        if not (1 <= self.max_concurrent <= 10):
+            raise ValueError(f"max_concurrent должен быть от 1 до 10, получено: {self.max_concurrent}")
+        if self.track_limit is not None and self.track_limit < 1:
+            raise ValueError("track_limit должен быть ≥ 1 или None")

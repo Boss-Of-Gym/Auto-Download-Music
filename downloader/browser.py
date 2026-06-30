@@ -15,6 +15,7 @@ from urllib.parse import quote_plus
 from playwright.async_api import Page
 from playwright.async_api import TimeoutError as PwTimeout
 
+from config import MIN_FILE_SIZE
 from downloader.matcher import titles_match
 from utils import safe_filename
 
@@ -119,17 +120,26 @@ async def download_from_page(page: Page, query: str, site: dict, download_dir: P
         async with page.expect_download(timeout=120_000) as dl_info:
             await btn.click()
 
-        dl       = await dl_info.value
-        filename = dl.suggested_filename or f"{query}.mp3"
-        dest     = download_dir / safe_filename(filename)
-        await dl.save_as(dest)
+        dl        = await dl_info.value
+        filename  = dl.suggested_filename or f"{query}.mp3"
+        safe_name = safe_filename(filename)
+        dest      = download_dir / safe_name
+        tmp_dest  = download_dir / (safe_name + ".tmp")
 
-        if not dest.exists() or dest.stat().st_size == 0:
-            if dest.exists():
-                dest.unlink()
-            log.warning("  [%s] Файл пустой или не создан: %s", name, dest.name)
+        await dl.save_as(tmp_dest)
+
+        if not tmp_dest.exists() or tmp_dest.stat().st_size < MIN_FILE_SIZE:
+            if tmp_dest.exists():
+                tmp_dest.unlink()
+            log.warning(
+                "  [%s] Файл пуст или слишком мал (< %d KB): %s",
+                name, MIN_FILE_SIZE // 1024, safe_name,
+            )
             return False
 
+        if dest.exists():
+            dest.unlink()
+        tmp_dest.rename(dest)
         log.info("  [%s] ✓ Скачано: %s (%.1f KB)", name, dest.name, dest.stat().st_size / 1024)
         return True
 

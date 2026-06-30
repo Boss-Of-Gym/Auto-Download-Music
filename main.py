@@ -67,52 +67,59 @@ async def main(config: AppConfig, on_progress=None, code_callback=None) -> None:
     # ─────────────────────────────────────────────────────────────
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=config.headless, slow_mo=50)
-        context = await browser.new_context(
-            accept_downloads=True,
-            locale="ru-RU",
-            viewport={"width": 1280, "height": 800},
-        )
-        context.set_default_timeout(30_000)
-
-        pending = load_pending(track_file)
-        if config.track_limit is not None:
-            pending = pending[:config.track_limit]
-
-        log.info("=" * 55)
-        log.info(
-            "Треков к скачиванию: %d%s",
-            len(pending),
-            f" (лимит: {config.track_limit})" if config.track_limit is not None else " (все pending)",
-        )
-        log.info("Параллельных потоков: %d  (сайты перебираются последовательно)", config.max_concurrent)
-        log.info("=" * 55)
-
-        if not pending:
-            log.info("Все треки уже обработаны.")
-            if on_progress:
-                on_progress(-1, "Все треки уже скачаны", "done")
-            await browser.close()
-            return
-
-        # Показываем все треки как "pending" сразу
-        if on_progress:
-            for entry in pending:
-                on_progress(entry["index"], entry["track"], "pending")
-
-        semaphore = asyncio.Semaphore(config.max_concurrent)
-        tasks = [
-            asyncio.create_task(
-                process_track(
-                    context, entry, semaphore, stats,
-                    track_file, file_lock, config.download_dir,
-                    on_progress=on_progress,
-                )
+        browser = await pw.chromium.launch(headless=config.headless, slow_mo=0)
+        try:
+            context = await browser.new_context(
+                accept_downloads=True,
+                locale="ru-RU",
+                viewport={"width": 1280, "height": 800},
             )
-            for entry in pending
-        ]
-        await asyncio.gather(*tasks)
-        await browser.close()
+            context.set_default_timeout(30_000)
+
+            pending = load_pending(track_file)
+            if config.track_limit is not None:
+                pending = pending[:config.track_limit]
+
+            log.info("=" * 55)
+            log.info(
+                "Треков к скачиванию: %d%s",
+                len(pending),
+                f" (лимит: {config.track_limit})" if config.track_limit is not None else " (все pending)",
+            )
+            log.info("Параллельных потоков: %d  (сайты перебираются последовательно)", config.max_concurrent)
+            log.info("=" * 55)
+
+            if not pending:
+                log.info("Все треки уже обработаны.")
+                if on_progress:
+                    on_progress(-1, "Все треки уже скачаны", "done")
+                return
+
+            # Показываем все треки как "pending" сразу
+            if on_progress:
+                for entry in pending:
+                    on_progress(entry["index"], entry["track"], "pending")
+
+            semaphore = asyncio.Semaphore(config.max_concurrent)
+            tasks = [
+                asyncio.create_task(
+                    process_track(
+                        context, entry, semaphore, stats,
+                        track_file, file_lock, config.download_dir,
+                        on_progress=on_progress,
+                    )
+                )
+                for entry in pending
+            ]
+            try:
+                await asyncio.gather(*tasks)
+            except asyncio.CancelledError:
+                for t in tasks:
+                    t.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
+                raise
+        finally:
+            await browser.close()
 
     all_data   = load_all(track_file)
     total      = len(all_data)

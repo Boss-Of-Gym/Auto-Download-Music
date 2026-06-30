@@ -140,7 +140,7 @@ async def collect_from_yandex(config: AppConfig, code_callback=None, on_progress
         on_progress(-1, "Подключение к Яндекс.Музыке...", "parsing")
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=config.headless, slow_mo=50)
+        browser = await pw.chromium.launch(headless=config.headless, slow_mo=30)
         context = await browser.new_context(
             locale="ru-RU",
             viewport={"width": 1280, "height": 800},
