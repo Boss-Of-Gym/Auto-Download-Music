@@ -1,0 +1,13 @@
+{
+  "source_mode": "json",
+  "json_path": "C:/Users/user/Documents/Projects/AutoDownload/Мне нравится_tracks.json",
+  "yandex_phone": "9147260503",
+  "yandex_login": "a.lifeform",
+  "yandex_account": "Дмитрий",
+  "yandex_playlist": "Мне нравится",
+  "download_dir": "C:\\Users\\user\\Music",
+  "threads": 3,
+  "headless": true,
+  "track_limit": "10",
+  "geometry": "960x640+104+104"
+}
